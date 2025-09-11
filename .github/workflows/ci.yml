@@ -29,7 +29,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --extra dev
       
       - name: Run Black formatting check
         run: uv run black --check --diff som/ tests/ cli.py api.py examples.py
@@ -61,7 +61,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --extra dev
       
       - name: Create required directories
         run: |
@@ -98,7 +98,7 @@ jobs:
           python-version: "3.11"
       
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --extra dev
       
       - name: Run safety check for vulnerabilities
         run: |
