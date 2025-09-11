@@ -511,6 +511,7 @@ async def upload_data(file: UploadFile = File(...)):
 def main():
     """Run the FastAPI server"""
     import os
+
     port = int(os.getenv("PORT", 8000))
     reload = os.getenv("RAILWAY_ENVIRONMENT") != "production"
     uvicorn.run("api:app", host="0.0.0.0", port=port, reload=reload, log_level="info")
