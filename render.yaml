@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: kohonen-som-api
+    env: python
+    buildCommand: "uv sync --frozen"
+    startCommand: "uv run python api.py"
+    envVars:
+      - key: LOG_LEVEL
+        value: INFO
+      - key: LOG_FORMAT
+        value: json
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: ENVIRONMENT
+        value: production
+      - key: APP_VERSION
+        value: "0.1.0"
+      - key: API_HOST
+        value: "0.0.0.0"
+      - key: API_PORT
+        value: "8000"
+    healthCheckPath: "/health"
+    autoDeploy: false
+    disk:
+      name: kohonen-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
