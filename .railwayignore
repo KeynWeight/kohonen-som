@@ -1,0 +1,17 @@
+# Don't deploy these files/folders to Railway
+.git/
+.github/
+tests/
+notebooks/
+docker/
+docker-compose.yml
+Dockerfile
+*.md
+.pre-commit-config.yaml
+.flake8
+.gitignore
+cli.py
+examples.py
+
+# Keep these for deployment
+!README.md

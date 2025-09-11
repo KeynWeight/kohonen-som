@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Install UV
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: Install dependencies
+        run: uv sync --frozen
+      
+      - name: Build Python package
+        run: |
+          uv build
+          ls -la dist/
+      
+      - name: Generate changelog
+        id: changelog
+        run: |
+          echo "## Changes" > CHANGELOG.md
+          if git describe --tags --abbrev=0 HEAD^ > /dev/null 2>&1; then
+            PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^)
+            echo "Changes since $PREVIOUS_TAG:" >> CHANGELOG.md
+            git log --pretty=format:"- %s" $PREVIOUS_TAG..HEAD >> CHANGELOG.md
+          else
+            echo "Initial release" >> CHANGELOG.md
+            git log --pretty=format:"- %s" >> CHANGELOG.md
+          fi
+          echo "" >> CHANGELOG.md
+          echo "## Docker Images" >> CHANGELOG.md
+          echo "- \`ghcr.io/${{ github.repository }}:${{ github.ref_name }}-api\`" >> CHANGELOG.md
+          echo "- \`ghcr.io/${{ github.repository }}:${{ github.ref_name }}-cli\`" >> CHANGELOG.md
+          echo "- \`ghcr.io/${{ github.repository }}:${{ github.ref_name }}-production\`" >> CHANGELOG.md
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: CHANGELOG.md
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Create summary
+        run: |
+          echo "## 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Packages**: $(ls dist/ | wc -l) files built" >> $GITHUB_STEP_SUMMARY
+          echo "- **Docker Images**: Available at ghcr.io/${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release**: Created at https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY

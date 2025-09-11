@@ -1,0 +1,155 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  # Job 1: Code Quality Checks
+  quality:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install UV
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install dependencies
+        run: uv sync --frozen
+      
+      - name: Run Black formatting check
+        run: uv run black --check --diff som/ tests/ cli.py api.py examples.py
+      
+      - name: Run Flake8 linting
+        run: uv run flake8 som/ tests/ cli.py api.py examples.py
+
+  # Job 2: Unit & Integration Tests
+  test:
+    runs-on: ubuntu-latest
+    needs: quality
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.11"]
+        test-type: ["unit", "integration", "api", "cli"]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install UV
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install dependencies
+        run: uv sync --frozen
+      
+      - name: Create required directories
+        run: |
+          mkdir -p plots models data
+      
+      - name: Run ${{ matrix.test-type }} tests
+        run: uv run pytest -m "${{ matrix.test-type }}" --cov=som --cov-report=xml --cov-report=term-missing -v
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: ${{ matrix.test-type }}
+          name: ${{ matrix.test-type }}-${{ matrix.python-version }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # Job 3: Security & Dependency Scanning
+  security:
+    runs-on: ubuntu-latest
+    needs: quality
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install UV
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: Install dependencies
+        run: uv sync --frozen
+      
+      - name: Run safety check for vulnerabilities
+        run: |
+          uv add safety
+          uv run safety check --json --output safety-report.json || true
+      
+      - name: Run bandit security scan
+        run: |
+          uv add bandit[toml]
+          uv run bandit -r som/ cli.py api.py -f json -o bandit-report.json || true
+      
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            safety-report.json
+            bandit-report.json
+      
+      - name: Display security scan summary
+        if: always()
+        run: |
+          echo "=== Safety Report Summary ==="
+          if [ -f safety-report.json ]; then
+            cat safety-report.json | jq -r '.vulnerabilities[] | "- \(.vulnerability_id): \(.package_name) \(.installed_version)"' || echo "No vulnerabilities found"
+          fi
+          echo ""
+          echo "=== Bandit Report Summary ==="
+          if [ -f bandit-report.json ]; then
+            cat bandit-report.json | jq -r '.results[] | "- \(.test_id): \(.filename):\(.line_number) - \(.issue_text)"' || echo "No security issues found"
+          fi
+
+  # Job 4: Overall CI Status
+  ci-status:
+    runs-on: ubuntu-latest
+    needs: [quality, test, security]
+    if: always()
+    
+    steps:
+      - name: Check CI Status
+        run: |
+          if [ "${{ needs.quality.result }}" = "success" ] && 
+             [ "${{ needs.test.result }}" = "success" ] && 
+             [ "${{ needs.security.result }}" = "success" ]; then
+            echo "✅ All CI checks passed!"
+            exit 0
+          else
+            echo "❌ Some CI checks failed:"
+            echo "Quality: ${{ needs.quality.result }}"
+            echo "Tests: ${{ needs.test.result }}"  
+            echo "Security: ${{ needs.security.result }}"
+            exit 1
+          fi

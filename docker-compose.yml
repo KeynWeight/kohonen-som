@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # API service for production
+  kohonen-api:
+    build:
+      context: .
+      target: api
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=info
+    volumes:
+      - ./data:/app/data:ro
+      - ./plots:/app/plots
+      - ./models:/app/models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - kohonen-network
+
+  # Production API with Gunicorn
+  kohonen-api-prod:
+    build:
+      context: .
+      target: production
+    ports:
+      - "8001:8000"
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=warning
+      - WORKERS=4
+    volumes:
+      - ./data:/app/data:ro
+      - ./plots:/app/plots
+      - ./models:/app/models
+    restart: unless-stopped
+    networks:
+      - kohonen-network
+
+  # Development service with hot reload
+  kohonen-dev:
+    build:
+      context: .
+      target: development
+    ports:
+      - "8002:8000"
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=debug
+    volumes:
+      - .:/app
+    restart: unless-stopped
+    networks:
+      - kohonen-network
+    command: python -m uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+
+networks:
+  kohonen-network:
+    driver: bridge
+
+# Override configurations for different environments
+# Usage:
+# Development: docker-compose up kohonen-dev
+# Production: docker-compose up kohonen-api-prod
+# Basic API: docker-compose up kohonen-api
