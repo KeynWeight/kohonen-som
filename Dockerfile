@@ -30,8 +30,8 @@ RUN pip install uv
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies
-RUN uv sync --frozen --no-dev --extra api
+# Install dependencies with minimal footprint
+RUN uv sync --frozen --no-dev --extra api --no-cache
 
 # Copy source code
 COPY som/ ./som/
@@ -73,5 +73,5 @@ CMD ["--help"]
 # Production API stage - gunicorn already installed via uv sync
 FROM api as production
 
-# Use Gunicorn for production
-CMD ["uv", "run", "gunicorn", "api:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--timeout", "120"]
+# Use Gunicorn for production with memory optimization
+CMD ["uv", "run", "gunicorn", "api:app", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--timeout", "120", "--max-requests", "1000", "--max-requests-jitter", "100"]
