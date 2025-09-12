@@ -70,8 +70,11 @@ FROM base as cli
 ENTRYPOINT ["python", "cli.py"]
 CMD ["--help"]
 
-# Production API stage - gunicorn already installed via uv sync
+# Production API stage - previously used gunicorn with 4 workers, but now unavailable
 FROM api as production
+
+# Previously used gunicorn for 4 workers:
+# CMD ["uv", "run", "gunicorn", "api:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
 
 # Use uvicorn directly for lower memory usage
 CMD ["uv", "run", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
