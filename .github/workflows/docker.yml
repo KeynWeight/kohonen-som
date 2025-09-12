@@ -134,15 +134,27 @@ jobs:
         run: |
           IMAGE_REF="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ matrix.target }}"
           echo "image-ref=${IMAGE_REF}" >> $GITHUB_OUTPUT
-          echo "Image reference: ${IMAGE_REF}"
+          echo "🔍 Image reference: ${IMAGE_REF}"
+          echo "📋 Registry: ${{ env.REGISTRY }}"
+          echo "📋 Image name: ${{ env.IMAGE_NAME }}"
+          echo "📋 Ref name: ${{ github.ref_name }}"
+          echo "📋 Target: ${{ matrix.target }}"
       
       - name: Check if image exists
         id: check-image
         continue-on-error: true
         run: |
+          IMAGE_REF="${{ steps.image-ref.outputs.image-ref }}"
+          echo "🔍 Checking if image exists: ${IMAGE_REF}"
+          
           # Try to pull the image to verify it exists
-          docker manifest inspect "${{ steps.image-ref.outputs.image-ref }}" > /dev/null 2>&1
-          echo "exists=$?" >> $GITHUB_OUTPUT
+          if docker manifest inspect "${IMAGE_REF}" > /dev/null 2>&1; then
+            echo "✅ Image exists"
+            echo "exists=0" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Image does not exist"
+            echo "exists=1" >> $GITHUB_OUTPUT
+          fi
       
       - name: Run Trivy vulnerability scanner
         if: steps.check-image.outputs.exists == '0'
@@ -151,6 +163,12 @@ jobs:
           image-ref: ${{ steps.image-ref.outputs.image-ref }}
           format: 'sarif'
           output: 'trivy-results-${{ matrix.target }}.sarif'
+      
+      - name: Skip scan for non-existent image
+        if: steps.check-image.outputs.exists != '0'
+        run: |
+          echo "⚠️ Skipping security scan - image does not exist: ${{ steps.image-ref.outputs.image-ref }}"
+          echo "This usually happens when the build job failed or the image wasn't pushed."
       
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
