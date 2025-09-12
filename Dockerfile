@@ -73,5 +73,5 @@ CMD ["--help"]
 # Production API stage - gunicorn already installed via uv sync
 FROM api as production
 
-# Use Gunicorn for production with memory optimization
-CMD ["uv", "run", "gunicorn", "api:app", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--timeout", "120", "--max-requests", "1000", "--max-requests-jitter", "100"]
+# Use uvicorn directly for lower memory usage
+CMD ["uv", "run", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
