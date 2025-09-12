@@ -70,15 +70,8 @@ FROM base as cli
 ENTRYPOINT ["python", "cli.py"]
 CMD ["--help"]
 
-# Production API stage with additional optimizations
+# Production API stage - gunicorn already installed via uv sync
 FROM api as production
-
-USER root
-
-# Install production optimizations
-RUN pip install gunicorn
-
-USER app
 
 # Use Gunicorn for production
 CMD ["gunicorn", "api:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--timeout", "120"]
