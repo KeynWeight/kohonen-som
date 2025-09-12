@@ -129,19 +129,26 @@ jobs:
         target: [api, production]
     
     steps:
+      - name: Set image reference
+        id: image-ref
+        run: |
+          IMAGE_REF="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ matrix.target }}"
+          echo "image-ref=${IMAGE_REF}" >> $GITHUB_OUTPUT
+          echo "Image reference: ${IMAGE_REF}"
+      
       - name: Check if image exists
         id: check-image
         continue-on-error: true
         run: |
           # Try to pull the image to verify it exists
-          docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ matrix.target }} > /dev/null 2>&1
+          docker manifest inspect "${{ steps.image-ref.outputs.image-ref }}" > /dev/null 2>&1
           echo "exists=$?" >> $GITHUB_OUTPUT
       
       - name: Run Trivy vulnerability scanner
         if: steps.check-image.outputs.exists == '0'
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ matrix.target }}
+          image-ref: ${{ steps.image-ref.outputs.image-ref }}
           format: 'sarif'
           output: 'trivy-results-${{ matrix.target }}.sarif'
       
