@@ -2,6 +2,13 @@
 
 A Self-Organizing Map implementation with CLI and API interfaces featuring comprehensive visualization capabilities.
 
+## 🚀 Live Demo
+
+**Try the live API at: https://kohonen-som.onrender.com**
+
+- API Documentation: https://kohonen-som.onrender.com/docs
+- Health Check: https://kohonen-som.onrender.com/health
+
 ## Installation
 
 ```bash
@@ -30,7 +37,7 @@ uv run python cli.py info my_model.pkl
 uv run python examples.py
 ```
 
-### API Workflow (Windows Compatible)
+### API Workflow (Local Development)
 
 ```bash
 # 1. Start server
@@ -64,6 +71,30 @@ curl "http://localhost:8000/health"
 
 # 9. Delete model when done
 curl -X DELETE "http://localhost:8000/models/8ca65ab2-5764-4a61-94b9-248eb25d5b12"
+```
+
+### API Workflow (Live Deployment)
+
+```bash
+# Use the live API at https://kohonen-som.onrender.com
+
+# 1. Train model and get model_id
+curl -X POST "https://kohonen-som.onrender.com/train" -H "Content-Type: application/json" -d "{\"data\": [[0.1,0.2,0.3],[0.4,0.5,0.6],[0.7,0.8,0.9],[0.2,0.3,0.4],[0.5,0.6,0.7]], \"config\": {\"width\": 10, \"height\": 10, \"n_iterations\": 100}}"
+
+# 2. List all models
+curl "https://kohonen-som.onrender.com/models"
+
+# 3. Get model information (replace with your model_id)
+curl "https://kohonen-som.onrender.com/models/8ca65ab2-5764-4a61-94b9-248eb25d5b12"
+
+# 4. Generate and download visualizations
+curl "https://kohonen-som.onrender.com/models/8ca65ab2-5764-4a61-94b9-248eb25d5b12/visualize?type=weights" --output weights_download.png
+
+# 5. Make predictions
+curl -X POST "https://kohonen-som.onrender.com/predict" -H "Content-Type: application/json" -d "{\"model_id\": \"8ca65ab2-5764-4a61-94b9-248eb25d5b12\", \"data\": [[0.1,0.2,0.3],[0.8,0.9,1.0]]}"
+
+# 6. Health check
+curl "https://kohonen-som.onrender.com/health"
 ```
 
 ### Complete Windows Workflow Example
