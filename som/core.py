@@ -1,6 +1,4 @@
-"""
-Core SOM implementation
-"""
+"""Core SOM implementation."""
 
 import numpy as np
 import pickle
@@ -25,7 +23,7 @@ from .visualization import SOMVisualizer
 
 
 def ensure_models_dir(filepath: str) -> str:
-    """Ensure models directory exists and return full path"""
+    """Ensure models directory exists and return full path."""
     if not os.path.isabs(filepath):
         models_dir = Path("models")
         models_dir.mkdir(exist_ok=True)
@@ -45,6 +43,11 @@ class SOM:
     NUMERICAL_EPSILON = 1e-8  # Small value for division safety
     COSINE_EPSILON = 1e-8  # Small value for cosine distance normalization
     HEXAGONAL_ADJACENCY_TOLERANCE = 1.1  # Tolerance for hexagonal adjacency
+
+    # Constants for initialization
+    PCA_RANGE = 3  # Range for PCA initialization (-range to +range)
+    STEP_DECAY_INTERVAL = 100  # Interval for step decay schedule
+    HEXAGONAL_VERTICAL_SPACING = np.sqrt(3) / 2  # Vertical spacing for hexagonal grid
 
     def __init__(self, config: SOMConfig, verbose: bool = True):
         """
@@ -125,7 +128,10 @@ class SOM:
         elif self.config.distance_metric == DistanceMetric.COSINE:
             # BallTree/KDTree don't support 'cosine' reliably -> use brute-force on normalized vectors
             # Store normalized weights for fast dot-product based cosine distance calculations
-            norms = np.linalg.norm(self.weights_flat, axis=1, keepdims=True) + 1e-8
+            norms = (
+                np.linalg.norm(self.weights_flat, axis=1, keepdims=True)
+                + self.COSINE_EPSILON
+            )
             self._normalized_weights = (self.weights_flat / norms).astype(
                 self.config.dtype
             )
@@ -143,14 +149,15 @@ class SOM:
             # Use brute-force cosine distance on normalized vectors
             # Normalize data
             data = np.asarray(data, dtype=self.config.dtype)
-            norms = np.linalg.norm(data, axis=1, keepdims=True) + 1e-8
+            norms = np.linalg.norm(data, axis=1, keepdims=True) + self.COSINE_EPSILON
             normalized_data = data / norms
 
             # Ensure normalized_weights is available (created in _create_tree)
             if getattr(self, "_normalized_weights", None) is None:
                 # If weights changed and tree wasn't rebuilt, compute normalized weights now
                 self._normalized_weights = self.weights_flat / (
-                    np.linalg.norm(self.weights_flat, axis=1, keepdims=True) + 1e-8
+                    np.linalg.norm(self.weights_flat, axis=1, keepdims=True)
+                    + self.COSINE_EPSILON
                 )
 
             # Dot product -> cosine similarity; distance = 1 - similarity
@@ -202,7 +209,9 @@ class SOM:
                 for j in range(self.config.height):
                     # Proper hexagonal grid: offset every other row in x-direction
                     x = i + (0.5 if j % 2 else 0)
-                    y = j * np.sqrt(3) / 2  # Vertical spacing for equilateral triangles
+                    y = (
+                        j * self.HEXAGONAL_VERTICAL_SPACING
+                    )  # Vertical spacing for equilateral triangles
                     coords.append([x, y])
             return np.array(coords, dtype=self.config.dtype)
         else:
@@ -238,7 +247,7 @@ class SOM:
                 pca.fit(data)
 
                 # Create 1D gradient along principal component
-                x_range = np.linspace(-3, 3, self.n_neurons)
+                x_range = np.linspace(-self.PCA_RANGE, self.PCA_RANGE, self.n_neurons)
                 points = x_range.reshape(-1, 1)
                 self.weights_flat = pca.inverse_transform(points).astype(
                     self.config.dtype
@@ -249,8 +258,12 @@ class SOM:
                 pca.fit(data)
 
                 # Create grid along principal components
-                x_range = np.linspace(-3, 3, self.config.width)
-                y_range = np.linspace(-3, 3, self.config.height)
+                x_range = np.linspace(
+                    -self.PCA_RANGE, self.PCA_RANGE, self.config.width
+                )
+                y_range = np.linspace(
+                    -self.PCA_RANGE, self.PCA_RANGE, self.config.height
+                )
 
                 self.weights_flat = np.zeros(
                     (self.n_neurons, self.config.n_features), dtype=self.config.dtype
@@ -359,7 +372,9 @@ class SOM:
         Issues #13, #14, #22: Gaussian with cutoff and underflow protection
         """
         exponent = -(distances**2) / (2 * (sigma**2))
-        exponent = np.maximum(exponent, -50)  # Issue #22: Prevent underflow
+        exponent = np.maximum(
+            exponent, self.UNDERFLOW_PROTECTION
+        )  # Issue #22: Prevent underflow
         return np.exp(exponent).astype(self.config.dtype)
 
     def _get_decay_value(
@@ -389,7 +404,7 @@ class SOM:
                 / 2
             )
         elif schedule == DecaySchedule.STEP:
-            drops = effective_t // 100
+            drops = effective_t // self.STEP_DECAY_INTERVAL
             return initial * (0.5**drops)
         else:  # EXPONENTIAL
             if initial > 0 and final > 0:
@@ -817,7 +832,9 @@ class SOM:
             if self.config.topology == Topology.HEXAGONAL:
                 # For hexagonal, adjacent means distance <= 1
                 distance = np.linalg.norm(coord1 - coord2)
-                if distance > 1.1:  # Not adjacent (with small tolerance)
+                if (
+                    distance > self.HEXAGONAL_ADJACENCY_TOLERANCE
+                ):  # Not adjacent (with small tolerance)
                     errors += 1
             elif self.config.topology == Topology.TOROIDAL:
                 # For toroidal, check wrap-around distance
